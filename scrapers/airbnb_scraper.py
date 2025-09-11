@@ -243,8 +243,7 @@ class AirbnbScraper(BaseScraper):
                 self._open_date_filter(page)
 
                 # Establecer rango de fechas específico
-                # Cambiar a formato D/M/YYYY
-                self._set_date_range(page, "1/7/2025", "10/9/2025")
+                self._set_date_range(page, "2025-07-01", "2025-09-10")
 
                 # Aplicar filtro
                 self._apply_filter(page)
