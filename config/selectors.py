@@ -1,26 +1,27 @@
 # config/selectors.py
 
 AIRBNB_SELECTORS = {
-    # ... (selectores existentes) ...
+    # Selectores principales para los campos de texto (BASADOS EN TU HTML)
+    'start_date_input': 'input#startDate',
+    'end_date_input': 'input#endDate',
 
-    # Selectores para el filtro de fechas
+    # Selectores alternativos (por data-testid)
+    'start_date_input_alt': 'input[data-testid="input"][id="startDate"]',
+    'end_date_input_alt': 'input[data-testid="input"][id="endDate"]',
+
+    # Botón aplicar - selector principal y alternativos
+    'apply_button': 'button[data-testid="dsDropdownApply"]',
+    'apply_button_alt': 'button:has-text("Aplicar"), button:has-text("Apply")',
+
+    # Contenedor del filtro de fechas (para abrirlo)
     'date_filter_container': 'div[data-testid="dsSelector"]',
     'date_filter_button': 'div[data-testid="dsSelector"] button',
 
-    # Selectores del calendario (campos de texto - como respaldo o si se arregla)
-    'start_date_input': 'input#startDate',
-    'end_date_input': 'input#endDate',
-    'apply_button': 'button[data-testid="dsDropdownApply"]',
-
-    # Nuevos selectores para interacción con el calendario
-    'calendar_container': 'div[data-testid="dsDropdown"]',  # El contenedor principal del calendario
-    'calendar_month_container': 'div._1foj6yps',  # Contiene los meses visibles
-    'calendar_visible_month': 'div._1svux14[data-visible="true"]',  # Un mes visible
-    'calendar_month_title': 'div._18c3hp2',  # Título del mes (ej: "julio de 2025")
-    'calendar_prev_button': 'button[aria-label="Anterior"]',  # Flecha mes anterior
-    'calendar_next_button': 'button[aria-label="Siguiente"]',  # Flecha mes siguiente
+    # Selectores del calendario (como respaldo)
+    'calendar_container': 'div[data-testid="dsDropdown"]',
     'calendar_day_button': 'div[data-testid="datepicker-day-{date}"]',
-    # Selector base para un día específico, {date} será reemplazado por YYYY-MM-DD
+    'calendar_next_button': 'button[aria-label="Siguiente"]',
+    'calendar_prev_button': 'button[aria-label="Anterior"]',
 }
 
 # BOOKING_SELECTORS = {} # Comentado por ahora

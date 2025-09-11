@@ -15,3 +15,5 @@ credentials.json
 # IDE
 .vscode/
 .idea/
+
+*.png

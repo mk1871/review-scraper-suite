@@ -1,11 +1,11 @@
-# scrapers/airbnb_scraper.py
+# scrapers/airbnb_scraper.py (SOLUCIÓN DEFINITIVA)
 
 import logging
+from datetime import datetime, date
 from typing import List
 
-from playwright.sync_api import sync_playwright, TimeoutError
+from playwright.sync_api import sync_playwright
 
-from config.selectors import AIRBNB_SELECTORS
 from models.review import Review
 from .base_scraper import BaseScraper
 
@@ -13,254 +13,117 @@ logger = logging.getLogger(__name__)
 
 
 class AirbnbScraper(BaseScraper):
-    def __init__(self, floor: str, url: str):
+    def __init__(self, floor: str, url: str, start_date: str = None, end_date: str = None):
         super().__init__(floor)
         self.url = url
+        self.start_date = start_date or "2025-07-01"  # 1 de julio por defecto
+        self.end_date = end_date or date.today().strftime("%Y-%m-%d")  # Hoy por defecto
 
-    def _log_step(self, message: str):
-        """Imprime un mensaje de paso para mejor seguimiento en terminal."""
-        print(f"  → {message}")
+    def _log_step(self, message: str, level: str = "info"):
+        """Log un paso del proceso"""
+        log_method = getattr(logger, level)
+        log_method(f"[{self.floor}] {message}")
 
-    def _open_date_filter(self, page):
-        """Abre el panel de filtro de fechas."""
-        self._log_step("Buscando selector de fechas...")
+    def _calculate_days_from_today(self, target_date: str) -> int:
+        """
+        Calcula días desde hoy con ajuste de offset de Airbnb (+1 día)
+        """
+        target = datetime.strptime(target_date, "%Y-%m-%d").date()
+        today = date.today()
+
+        # AJUSTE: Airbnb tiene offset de +1 día, restamos 1 para compensar
+        delta = (target - today).days - 1  # ← ESTA ES LA LÍNEA CLAVE
+
+        self._log_step(f"Hoy: {today}, Target: {target}, Delta ajustado: {delta}")
+        return delta
+
+    # Versión alternativa para mantener el formato exacto:
+    def _build_url_with_date_range(self, start_date: str, end_date: str) -> str:
+        """
+        Construye URL directa a reviews MANTENIENDO formato exacto
+        """
+        ds_start = self._calculate_days_from_today(start_date)
+        ds_end = self._calculate_days_from_today(end_date)
+
+        # URL base manteniendo la estructura completa
+        base_url = self.url
+        if '/reviews?' not in base_url:
+            # Agregar /reviews? si no está presente
+            base_url = base_url + '/reviews?'
+        else:
+            base_url = base_url.split('?')[0] + '?'
+
+        # Agregar parámetros
+        new_url = f"{base_url}ds-start={ds_start}&ds-end={ds_end}"
+
+        self._log_step(f"URL final: {new_url}")
+        return new_url
+
+    def _extract_visible_dates(self, page):
+        """
+        Extrae las fechas REALES que muestra Airbnb después de aplicar filtro
+        Esto asegura que usamos las fechas correctas (timezone España)
+        """
         try:
-            # Espera a que el contenedor del selector esté disponible
-            date_selector_container = page.wait_for_selector(
-                AIRBNB_SELECTORS['date_filter_container'],
-                timeout=15000  # Aumento ligero del timeout
-            )
-            self._log_step("Selector de fechas encontrado.")
+            # Buscar elementos que muestren el rango de fechas aplicado
+            date_elements = page.query_selector_all('[data-testid*="date"]')
+            date_texts = []
 
-            # Busca el botón dentro del contenedor usando el selector más específico
-            filter_button = date_selector_container.query_selector(
-                'button'  # El botón es un hijo directo del contenedor
-            )
-            if filter_button:
-                self._log_step("Haciendo clic en el botón del selector de fechas...")
-                filter_button.click()
-                self._log_step("Clic realizado. Panel de fechas debería estar abierto.")
-                # Pequeña pausa para que el panel se abra completamente
-                page.wait_for_timeout(2000)
-            else:
-                self._log_step("❌ No se encontró el botón dentro del selector de fechas.")
-                raise Exception("Botón del filtro de fechas no encontrado")
+            for element in date_elements:
+                text = element.inner_text().strip()
+                if text and any(char.isdigit() for char in text):
+                    date_texts.append(text)
 
-        except TimeoutError:
-            self._log_step("❌ Timeout: No se encontró el selector de fechas.")
-            raise
-        except Exception as e:
-            self._log_step(f"❌ Error al intentar abrir el filtro de fechas: {e}")
-            raise
-
-    def _navigate_to_month(self, page, target_month_year: str):
-        """
-        Navega por el calendario hasta encontrar el mes objetivo.
-        target_month_year: Texto como "julio de 2025" que aparece en el título del mes.
-        """
-        self._log_step(f"Navegando al mes: {target_month_year}")
-        max_attempts = 24  # Evitar bucle infinito
-        attempts = 0
-
-        while attempts < max_attempts:
-            try:
-                # Esperar a que los meses visibles se carguen
-                page.wait_for_selector(AIRBNB_SELECTORS['calendar_visible_month'], timeout=5000)
-
-                # Buscar si el mes objetivo está visible
-                visible_months = page.query_selector_all(AIRBNB_SELECTORS['calendar_visible_month'])
-                found = False
-                for month_div in visible_months:
-                    title_element = month_div.query_selector(AIRBNB_SELECTORS['calendar_month_title'])
-                    if title_element and target_month_year.lower() in title_element.inner_text().lower():
-                        self._log_step(f"Mes objetivo '{target_month_year}' encontrado.")
-                        return True  # Mes encontrado
-
-                # Si no se encontró, hacer clic en "Siguiente"
-                # (Asumimos que normalmente queremos fechas futuras, si no, se puede ajustar)
-                next_button = page.wait_for_selector(AIRBNB_SELECTORS['calendar_next_button'], timeout=2000)
-                if next_button:
-                    self._log_step("Haciendo clic en flecha 'Siguiente'...")
-                    next_button.click()
-                    page.wait_for_timeout(1000)  # Pausa para que cargue el nuevo mes
-                else:
-                    self._log_step("❌ Botón 'Siguiente' no encontrado.")
-                    return False
-
-            except Exception as e:
-                self._log_step(f"⚠️ Error al navegar a {target_month_year}: {e}")
-                # Intentar continuar
-                pass
-
-            attempts += 1
-
-        self._log_step(f"❌ No se pudo encontrar el mes '{target_month_year}' después de {max_attempts} intentos.")
-        return False
-
-    def _select_date_from_calendar(self, page, date_str: str):
-        """
-        Selecciona una fecha específica del calendario.
-        date_str: Fecha en formato YYYY-MM-DD (ej: "2025-07-01").
-        """
-        self._log_step(f"Seleccionando fecha del calendario: {date_str}")
-        try:
-            # Formato del selector para el día específico
-            day_selector = AIRBNB_SELECTORS['calendar_day_button'].format(date=date_str)
-
-            # Esperar a que el día esté disponible y hacer clic
-            day_button = page.wait_for_selector(day_selector, timeout=10000)
-            if day_button:
-                # Verificar si está deshabilitado (aunque wait_for_selector debería esperar uno habilitado)
-                # aria-disabled="true" o similar podría estar presente
-                is_disabled = day_button.get_attribute("aria-disabled") == "true"
-                if is_disabled:
-                    self._log_step(f"❌ La fecha {date_str} está deshabilitada.")
-                    return False
-
-                day_button.click()
-                self._log_step(f"✅ Fecha {date_str} seleccionada.")
-                return True
-            else:
-                self._log_step(f"❌ No se encontró el botón para la fecha {date_str}.")
-                return False
-        except TimeoutError:
-            self._log_step(f"❌ Timeout al esperar la fecha {date_str} en el calendario.")
-            return False
-        except Exception as e:
-            self._log_step(f"❌ Error al seleccionar la fecha {date_str}: {e}")
-            return False
-
-    def _set_date_range(self, page, start_date_iso: str, end_date_iso: str):
-        """
-        Establece el rango de fechas seleccionando en el calendario.
-        start_date_iso: Fecha de inicio en formato YYYY-MM-DD (ej: "2025-07-01").
-        end_date_iso: Fecha de fin en formato YYYY-MM-DD (ej: "2025-09-10").
-        """
-        # Convertir fechas ISO a nombres de meses en español para Airbnb
-        # Esta es una forma básica, se podría mejorar usando `locale` o un diccionario
-        meses_es = {
-            "01": "enero", "02": "febrero", "03": "marzo", "04": "abril",
-            "05": "mayo", "06": "junio", "07": "julio", "08": "agosto",
-            "09": "septiembre", "10": "octubre", "11": "noviembre", "12": "diciembre"
-        }
-
-        try:
-            start_year, start_month, start_day = start_date_iso.split("-")
-            end_year, end_month, end_day = end_date_iso.split("-")
-
-            start_month_name = meses_es.get(start_month, "julio")  # Por defecto julio si falla
-            end_month_name = meses_es.get(end_month, "septiembre")  # Por defecto septiembre
-
-            start_month_year_text = f"{start_month_name} de {start_year}"
-            end_month_year_text = f"{end_month_name} de {end_year}"
-
-            self._log_step(
-                f"Estableciendo rango de fechas mediante calendario: {start_date_iso} ({start_month_year_text}) → {end_date_iso} ({end_month_year_text})")
-
-            # 1. Navegar al mes de inicio
-            if not self._navigate_to_month(page, start_month_year_text):
-                raise Exception(f"No se pudo navegar al mes de inicio: {start_month_year_text}")
-
-            # 2. Seleccionar la fecha de inicio
-            if not self._select_date_from_calendar(page, start_date_iso):
-                raise Exception(f"No se pudo seleccionar la fecha de inicio: {start_date_iso}")
-
-            # 3. Seleccionar la fecha de fin (se asume que el mes está visible o se puede navegar)
-            # El calendario podría haberse movido, pero normalmente muestra varios meses.
-            # Si el mes de fin no está visible, necesitamos navegar.
-            # Para simplificar, asumiremos que está visible o haremos una navegación adicional.
-
-            # Verificar si el mes de fin está visible
-            visible_months_after_start = page.query_selector_all(AIRBNB_SELECTORS['calendar_visible_month'])
-            end_month_found = False
-            for month_div in visible_months_after_start:
-                title_element = month_div.query_selector(AIRBNB_SELECTORS['calendar_month_title'])
-                if title_element and end_month_year_text.lower() in title_element.inner_text().lower():
-                    end_month_found = True
-                    break
-
-            # Si no está visible, navegar hasta él
-            if not end_month_found:
-                if not self._navigate_to_month(page, end_month_year_text):
-                    # Si falla la navegación directa, intentar navegar paso a paso
-                    # (Este es un enfoque básico, podría mejorarse)
-                    self._log_step(f"Intentando navegación paso a paso para llegar a {end_month_year_text}...")
-                    # Esto es complejo sin saber cuántos meses hay entre inicio y fin.
-                    # Por ahora, lanzamos un error si no se encuentra después de navegar.
-                    raise Exception(f"No se pudo navegar al mes de fin: {end_month_year_text}")
-
-            # 4. Seleccionar la fecha de fin
-            if not self._select_date_from_calendar(page, end_date_iso):
-                raise Exception(f"No se pudo seleccionar la fecha de fin: {end_date_iso}")
-
-            self._log_step("✅ Rango de fechas establecido correctamente mediante calendario.")
-
-            # --- Pausa breve antes de aplicar ---
-            self._log_step("⏳ Pausando 2 segundos antes de aplicar el filtro...")
-            page.wait_for_timeout(2000)  # 2 segundos
-            # --- FIN NUEVO ---
+            self._log_step(f"Fechas visibles en página: {date_texts}")
+            return date_texts
 
         except Exception as e:
-            self._log_step(f"❌ Error al establecer el rango de fechas mediante calendario: {e}")
-            raise  # Re-lanzar para que el error se maneje en scrape
-
-    def _apply_filter(self, page):
-        """
-        Haz clic en el botón "Aplicar".
-        Basado en el HTML: button[data-testid="dsDropdownApply"]
-        """
-        self._log_step("Buscando botón 'Aplicar'...")
-        try:
-            apply_button = page.wait_for_selector(AIRBNB_SELECTORS['apply_button'], timeout=10000)
-            self._log_step("Botón 'Aplicar' encontrado.")
-            self._log_step("Haciendo clic en 'Aplicar'...")
-            apply_button.click()
-            self._log_step("✅ Filtro aplicado. Esperando a que cargue el contenido...")
-            # Esperar a que algo indique que el contenido se ha actualizado
-            # Esto puede ser específico a la página, por ahora una pausa genérica
-            page.wait_for_timeout(5000)  # Ajustar según la velocidad de carga
-        except TimeoutError:
-            self._log_step("❌ Timeout: No se encontró el botón 'Aplicar'.")
-            raise
-        except Exception as e:
-            self._log_step(f"❌ Error al aplicar el filtro: {e}")
-            raise
+            self._log_step(f"⚠️ Error extrayendo fechas visibles: {e}", "warning")
+            return []
 
     def scrape(self) -> List[Review]:
-        print("🔌 Conectando a Chrome en modo remoto...")
+        """Método principal de scraping"""
+        self._log_step(f"Iniciando scraping para: {self.url}")
+
         with sync_playwright() as p:
             try:
-                browser = p.chromium.connect_over_cdp("http://localhost:9222")
-                print("✅ Conectado a Chrome")
+                # INTENTAR CONEXIÓN CON 127.0.0.1 (IPv4)
+                debug_url = "http://127.0.0.1:9222"
+                self._log_step(f"Conectando a: {debug_url}")
+
+                browser = p.chromium.connect_over_cdp(debug_url)
                 context = browser.contexts[0]
                 page = context.new_page()
 
-                print(f"🌍 Navegando a: {self.url}")
-                page.goto(self.url)
+                # ... resto del código igual ...
 
-                # --- Proceso de filtro de fechas ---
-                print("\n--- Iniciando proceso de filtro de fechas ---")
-                self._open_date_filter(page)
+                # 1. URL DIRECTA A REVIEWS
+                target_url = self._build_url_with_date_range(self.start_date, self.end_date)
+                self._log_step(f"URL: {target_url}")
 
-                # Establecer rango de fechas específico
-                self._set_date_range(page, "2025-07-01", "2025-09-10")
+                # 2. NAVEGAR
+                page.goto(target_url, wait_until="networkidle")
+                page.wait_for_timeout(5000)
 
-                # Aplicar filtro
-                self._apply_filter(page)
-                print("--- Finalizado proceso de filtro de fechas ---\n")
+                # 3. VERIFICAR FECHAS REALES QUE MUESTRA AIRBNB
+                visible_dates = self._extract_visible_dates(page)
+                self._log_step(f"Fechas mostradas por Airbnb: {visible_dates}")
 
-                # --- Aquí iría el scraping de las reseñas ---
-                # ... (código para extraer reseñas) ...
+                # 4. TOMAR SCREENSHOT PARA VERIFICACIÓN VISUAL
+                page.screenshot(path=f"verify_{self.floor}.png", full_page=True)
+                self._log_step("📸 Screenshot de verificación tomado")
+
+                # 5. EXTRAER REVIEWS (PRÓXIMO PASO)
+                # Aquí extraeremos las fechas REALES que muestra cada reseña
 
                 browser.close()
-                print("✅ Proceso de scraping (filtro de fechas) completado.")
-                return self.reviews  # Devuelve lista vacía por ahora
+                self._log_step("✅ Proceso completado - Listo para extraer reseñas")
+                return self.reviews
 
             except Exception as e:
-                logger.error(f"❌ Error crítico en el proceso de scraping: {e}")
-                # Intentar cerrar el navegador si está abierto
+                self._log_step(f"❌ Error: {e}", "error")
                 try:
                     browser.close()
                 except:
-                    pass  # Ignorar errores al cerrar
-                raise  # Re-lanzar la excepción para que se maneje arriba
+                    pass
+                raise
