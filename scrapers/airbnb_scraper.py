@@ -184,22 +184,6 @@ class AirbnbScraper(BaseScraper):
         should_stop = False
 
         try:
-            # DEPURACIÓN: Verificar si los selectores existen en la página
-            self._log_step("🔍 Verificando selectores en la página...")
-
-            # Verificar cada selector individualmente
-            for selector_name, selector in AIRBNB_SELECTORS.items():
-                elements = page.query_selector_all(selector)
-                self._log_step(f"Selector '{selector_name}': {len(elements)} elementos encontrados")
-                if len(elements) > 0 and len(elements) < 5:  # Mostrar primeros elementos para debug
-                    for i, element in enumerate(elements[:3]):
-                        try:
-                            text = element.inner_text().strip()[:100] + "..." if len(
-                                element.inner_text().strip()) > 100 else element.inner_text().strip()
-                            self._log_step(f"  Elemento {i}: '{text}'")
-                        except:
-                            self._log_step(f"  Elemento {i}: [no se pudo obtener texto]")
-
             review_containers = page.query_selector_all(AIRBNB_SELECTORS['review_container'])
             self._log_step(f"📄 Encontrados {len(review_containers)} contenedores de reseña")
 
@@ -207,55 +191,18 @@ class AirbnbScraper(BaseScraper):
                 try:
                     self._log_step(f"🔍 Procesando reseña {i + 1}/{len(review_containers)}")
 
-                    # DEPURACIÓN: Verificar qué elementos tiene cada contenedor
+                    # Extraer elementos
                     guest_name_elem = container.query_selector(AIRBNB_SELECTORS['guest_name'])
                     dates_elem = container.query_selector(AIRBNB_SELECTORS['stay_dates'])
                     text_elem = container.query_selector(AIRBNB_SELECTORS['review_text'])
 
-                    # EXTRAER RATINGS CORRECTAMENTE
+                    # Extraer ratings
                     cleanliness_container = container.query_selector(AIRBNB_SELECTORS['cleanliness_rating_container'])
                     general_container = container.query_selector(AIRBNB_SELECTORS['general_rating_container'])
 
-                    # DEPURACIÓN: Mostrar qué elementos se encontraron
-                    elements_found = []
-                    if guest_name_elem:
-                        elements_found.append(f"guest_name: '{guest_name_elem.inner_text().strip()[:50]}...'")
-                    else:
-                        elements_found.append("guest_name: NO")
-
-                    if dates_elem:
-                        elements_found.append(f"dates: '{dates_elem.inner_text().strip()[:50]}...'")
-                    else:
-                        elements_found.append("dates: NO")
-
-                    if general_container:
-                        elements_found.append(f"general_rating: encontrado")
-                    else:
-                        elements_found.append("general_rating: NO")
-
-                    if cleanliness_container:
-                        elements_found.append(f"cleanliness_rating: encontrado")
-                    else:
-                        elements_found.append("cleanliness_rating: NO")
-
-                    if text_elem:
-                        elements_found.append(f"text: '{text_elem.inner_text().strip()[:50]}...'")
-                    else:
-                        elements_found.append("text: NO")
-
-                    self._log_step(f"📋 Elementos encontrados: {', '.join(elements_found)}")
-
+                    # Verificar elementos esenciales
                     if not all([guest_name_elem, dates_elem, general_container]):
                         self._log_step("⚠️ Faltan elementos esenciales, saltando reseña", "warning")
-
-                        # DEPURACIÓN EXTRA: Ver la estructura HTML del contenedor
-                        try:
-                            container_html = container.inner_html()[:200] + "..." if len(
-                                container.inner_html()) > 200 else container.inner_html()
-                            self._log_step(f"🔍 HTML del contenedor: {container_html}")
-                        except:
-                            self._log_step("❌ No se pudo obtener HTML del contenedor")
-
                         continue
 
                     guest_name = guest_name_elem.inner_text().strip()
@@ -277,33 +224,56 @@ class AirbnbScraper(BaseScraper):
                         should_stop = True
                         break
 
-                    # VERIFICAR DUPLICADOS
-                    if self._is_duplicate_review(guest_name, review_date, review_text):
-                        continue
-
-                    # EXTRAER RATINGS
+                    # Extraer ratings
                     general_rating = self._extract_rating(general_container)
                     cleanliness_rating = self._extract_rating(cleanliness_container) if cleanliness_container else "N/A"
 
-                    review = Review(
-                        review_date=review_date,
-                        check_in_date=check_in_date,
-                        platform="Airbnb",
-                        rating=general_rating,
-                        guest_name=guest_name,
-                        floor=self.floor,
-                        full_comment=review_text,
-                        added_date=date.today()
-                    )
+                    # VERIFICAR SI ES DUPLICADO
+                    is_duplicate = self._is_duplicate_review(guest_name, review_date, review_text)
 
-                    # Agregar rating de limpieza como atributo adicional
-                    review.cleanliness_rating = cleanliness_rating
+                    if is_duplicate:
+                        self._log_step(
+                            f"🔄 Reseña duplicada encontrada, preparando para actualizar: {guest_name} - {review_date}")
 
-                    self.add_review(review)
-                    reviews_count += 1
+                        # Crear objeto Review con todos los datos (para actualización)
+                        review = Review(
+                            review_date=review_date,
+                            check_in_date=check_in_date,
+                            platform="Airbnb",
+                            rating=general_rating,
+                            guest_name=guest_name,
+                            floor=self.floor,
+                            full_comment=review_text,
+                            added_date=date.today(),
+                            cleanliness_rating=cleanliness_rating
+                        )
 
-                    self._log_step(
-                        f"✅ Reseña nueva añadida: {guest_name} - {review_date} - General: {general_rating} - Limpieza: {cleanliness_rating}")
+                        # Agregar a la lista de actualizaciones
+                        self.reviews_to_update.append(review)
+                        self._log_step(
+                            f"📝 Reseña marcada para actualización: {guest_name} - Limpieza: {cleanliness_rating}")
+
+                    else:
+                        # RESEÑA NUEVA
+                        review = Review(
+                            review_date=review_date,
+                            check_in_date=check_in_date,
+                            platform="Airbnb",
+                            rating=general_rating,
+                            guest_name=guest_name,
+                            floor=self.floor,
+                            full_comment=review_text,
+                            added_date=date.today()
+                        )
+
+                        # Agregar rating de limpieza
+                        review.cleanliness_rating = cleanliness_rating
+
+                        self.add_review(review)
+                        reviews_count += 1
+
+                        self._log_step(
+                            f"✅ Reseña nueva añadida: {guest_name} - {review_date} - General: {general_rating} - Limpieza: {cleanliness_rating}")
 
                     # Actualizar fechas mínima y máxima
                     if self.min_review_date is None or review_date < self.min_review_date:
@@ -318,7 +288,8 @@ class AirbnbScraper(BaseScraper):
         except Exception as e:
             self._log_step(f"❌ Error en scrape_reviews_page: {e}", "error")
 
-        self._log_step(f"📊 Resumen página: {reviews_count} nuevas, debería parar: {should_stop}")
+        self._log_step(
+            f"📊 Resumen página: {reviews_count} nuevas, {len(self.reviews_to_update)} para actualizar, debería parar: {should_stop}")
         return reviews_count, should_stop
 
     def _go_to_next_page(self, page: Page) -> bool:
@@ -347,11 +318,14 @@ class AirbnbScraper(BaseScraper):
             return False
 
     def scrape(self) -> List[Review]:
+        """Scraping con parada inteligente por fecha y detección de duplicados"""
         self._log_step(f"🚀 Iniciando scraping inteligente para piso {self.floor}")
         self._log_step(f"🎯 Rango objetivo: {self.start_date} a {self.end_date}")
 
+        # Inicializar lista de actualizaciones
+        self.reviews_to_update = []
+
         self._load_existing_hashes()
-        self._log_step(f"📊 {len(self.existing_hashes)} hashes existentes cargados")
 
         with sync_playwright() as p:
             try:
@@ -359,6 +333,7 @@ class AirbnbScraper(BaseScraper):
                 context = browser.contexts[0]
                 page = context.new_page()
 
+                # Construir URL con filtros
                 target_url = self._build_url_with_date_range(
                     self.start_date.strftime("%Y-%m-%d"),
                     self.end_date.strftime("%Y-%m-%d")
@@ -367,6 +342,7 @@ class AirbnbScraper(BaseScraper):
                 page.goto(target_url, wait_until="networkidle")
                 page.wait_for_timeout(5000)
 
+                # Scraping con parada inteligente
                 total_reviews = 0
                 page_number = 1
                 should_stop = False
@@ -377,7 +353,8 @@ class AirbnbScraper(BaseScraper):
                     reviews_count, should_stop = self._scrape_reviews_page(page)
                     total_reviews += reviews_count
 
-                    self._log_step(f"📊 Página {page_number}: {reviews_count} nuevas reseñas")
+                    self._log_step(
+                        f"📊 Página {page_number}: {reviews_count} nuevas reseñas, {len(self.reviews_to_update)} para actualizar")
 
                     if should_stop:
                         self._log_step("⏹️ Deteniendo scraping por fecha fuera de rango")
@@ -392,14 +369,18 @@ class AirbnbScraper(BaseScraper):
                         self._log_step("⚠️ Límite de páginas alcanzado (50)")
                         break
 
-                self._log_step(f"🏁 Scraping completado. Total: {total_reviews} nuevas reseñas")
+                self._log_step(
+                    f"🏁 Scraping completado. Total: {total_reviews} nuevas reseñas, {len(self.reviews_to_update)} para actualizar")
+
                 if self.min_review_date:
                     self._log_step(f"📅 Fecha más antigua encontrada: {self.min_review_date}")
                 if self.max_review_date:
                     self._log_step(f"📅 Fecha más reciente encontrada: {self.max_review_date}")
 
                 browser.close()
-                return self.reviews
+
+                # Devolver ambas listas: nuevas reseñas y reseñas para actualizar
+                return self.reviews, self.reviews_to_update
 
             except Exception as e:
                 self._log_step(f"❌ Error crítico: {e}", "error")

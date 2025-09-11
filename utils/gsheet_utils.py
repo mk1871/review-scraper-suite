@@ -73,7 +73,6 @@ def append_review_to_sheet(sheet: gspread.Worksheet, review: Review) -> bool:
         return False
 
 
-# utils/gsheet_utils.py
 def update_existing_review(sheet: gspread.Worksheet, review: Review) -> bool:
     """Actualiza una reseña existente con el rating de limpieza"""
     try:
@@ -84,8 +83,8 @@ def update_existing_review(sheet: gspread.Worksheet, review: Review) -> bool:
             if (record['Nombre Huésped'] == review.guest_name and
                     record['Fecha Reseña'] == review.review_date.strftime('%Y-%m-%d') and
                     record['Piso'] == review.floor):
-                # Actualizar solo el rating de limpieza
-                sheet.update_cell(i, 12, review.cleanliness_rating or "")  # Columna 12 = V Limpieza
+                # Actualizar solo el rating de limpieza (columna L = 12)
+                sheet.update_cell(i, 12, review.cleanliness_rating or "")
                 logger.info(
                     f"✅ Actualizada reseña: {review.guest_name} - {review.review_date} - Limpieza: {review.cleanliness_rating}")
                 return True
