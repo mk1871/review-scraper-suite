@@ -1,7 +1,5 @@
-# config/selectors.py
-
 AIRBNB_SELECTORS = {
-    # Selectores principales para los campos de texto (BASADOS EN TU HTML)
+    # Selectores principales para los campos de texto
     'start_date_input': 'input#startDate',
     'end_date_input': 'input#endDate',
 
@@ -23,16 +21,21 @@ AIRBNB_SELECTORS = {
     'calendar_next_button': 'button[aria-label="Siguiente"]',
     'calendar_prev_button': 'button[aria-label="Anterior"]',
 
-    # NUEVOS SELECTORES PARA REVIEWS
-    'review_container': 'div._i3snph',  # Contenedor de cada reseña
-    'guest_name': 'div._gt7myn',  # Nombre del huésped
-    'stay_dates': 'div._1w3y9kg',  # Fechas de estadía
-    'cleanliness_rating': 'div._1m338bm6 + span[aria-label*="Valoración"]',  # Rating limpieza
-    'general_rating': 'div._8vya27 + span[aria-label*="Valoración"]',  # Rating general
-    'review_text': 'div._1umquac',  # Texto de la reseña
-    'pagination_container': 'div.p1j2gy66',  # Contenedor de paginación
-    'next_page_button': 'button[aria-label="Página siguiente"]',  # Botón siguiente
-    'current_page_info': 'div._1j4qd3l',  # "Mostrando X de Y"
-}
+    # SELECTORES CORREGIDOS PARA REVIEWS:
+    'review_container': 'div._i3snph',  # ✅ Correcto
+    'guest_name': 'div._gt7myn',  # ✅ Correcto
+    'stay_dates': 'div._1w3y9kg',  # ✅ Correcto
+    'review_text': 'div._1umquac',  # ✅ Correcto
 
-# BOOKING_SELECTORS = {} # Comentado por ahora
+    # SELECTORES NUEVOS PARA RATINGS (basados en tu HTML):
+    'cleanliness_rating_container': 'div._5kaapu:has(div._1m338bm6)',  # Contenedor de rating limpieza
+    'general_rating_container': 'div._1uuujzfx:has(div._8vya27)',  # Contenedor de rating general
+
+    # Selectores para extraer el valor numérico del rating:
+    'rating_value': 'span[aria-label*="Valoración"]',  # Elemento que contiene el rating
+    'rating_stars': 'span[aria-hidden="true"]',  # Elemento con el número
+
+    'pagination_container': 'div.p1j2gy66',
+    'next_page_button': 'button[aria-label="Página siguiente"]',
+    'current_page_info': 'div._1j4qd3l',
+}

@@ -22,6 +22,7 @@ class AirbnbScraper(BaseScraper):
         self.existing_hashes: Set[str] = set()
         self.min_review_date = None
         self.max_review_date = None
+        self.reviews_to_update = []
 
     def _log_step(self, message: str, level: str = "info"):
         log_method = getattr(logger, level)

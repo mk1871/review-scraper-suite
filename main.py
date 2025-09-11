@@ -1,14 +1,14 @@
-# main.py (nuevo archivo principal)
+# main.py
 import logging
 from typing import List
-
+from datetime import date
 import pandas as pd
 
 from config.settings import BASE_DIR
 from models.review import Review
 from scrapers.airbnb_scraper import AirbnbScraper
 from utils.error_handling import handle_scraper_errors
-from utils.gsheet_utils import setup_gspread, append_review_to_sheet
+from utils.gsheet_utils import setup_gspread, append_review_to_sheet, update_existing_review
 
 # Configurar logging
 logging.basicConfig(
@@ -44,7 +44,12 @@ def scrape_airbnb_reviews() -> List[Review]:
 
             logger.info(f"Scrapeando piso: {piso}")
 
-            scraper = AirbnbScraper(piso, url)
+            scraper = AirbnbScraper(
+                floor=piso,
+                url=url,
+                start_date="2025-07-01",  # Fecha inicio fija
+                end_date=date.today().strftime("%Y-%m-%d")  # Fecha fin (hoy)
+            )
             reviews = scraper.scrape()
             all_reviews.extend(reviews)
 
@@ -58,22 +63,27 @@ def scrape_airbnb_reviews() -> List[Review]:
 
 
 @handle_scraper_errors
-def export_to_google_sheets(reviews: List[Review]):
-    """Exporta las reseñas a Google Sheets"""
-    if not reviews:
-        logger.warning("No hay reseñas para exportar")
-        return
-
+def export_to_google_sheets(reviews: List[Review], reviews_to_update: List[Review] = None):
+    """Exporta las reseñas a Google Sheets y actualiza existentes"""
     try:
         sheet = setup_gspread()
         logger.info("✅ Conectado a Google Sheets")
 
         success_count = 0
+        update_count = 0
+
+        # Agregar nuevas reseñas
         for review in reviews:
             if append_review_to_sheet(sheet, review):
                 success_count += 1
 
-        logger.info(f"✅ Exportadas {success_count}/{len(reviews)} reseñas a Google Sheets")
+        # Actualizar reseñas existentes
+        if reviews_to_update:
+            for review in reviews_to_update:
+                if update_existing_review(sheet, review):
+                    update_count += 1
+
+        logger.info(f"✅ Exportadas {success_count} nuevas y actualizadas {update_count} reseñas")
 
     except Exception as e:
         logger.error(f"❌ Error exportando a Google Sheets: {e}")

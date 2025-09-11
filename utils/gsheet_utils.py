@@ -71,3 +71,28 @@ def append_review_to_sheet(sheet: gspread.Worksheet, review: Review) -> bool:
     except Exception as e:
         logger.error(f"Error al agregar reseña: {e}")
         return False
+
+
+# utils/gsheet_utils.py
+def update_existing_review(sheet: gspread.Worksheet, review: Review) -> bool:
+    """Actualiza una reseña existente con el rating de limpieza"""
+    try:
+        # Buscar la reseña por nombre, fecha y piso
+        records = sheet.get_all_records()
+
+        for i, record in enumerate(records, start=2):  # start=2 porque la fila 1 son headers
+            if (record['Nombre Huésped'] == review.guest_name and
+                    record['Fecha Reseña'] == review.review_date.strftime('%Y-%m-%d') and
+                    record['Piso'] == review.floor):
+                # Actualizar solo el rating de limpieza
+                sheet.update_cell(i, 12, review.cleanliness_rating or "")  # Columna 12 = V Limpieza
+                logger.info(
+                    f"✅ Actualizada reseña: {review.guest_name} - {review.review_date} - Limpieza: {review.cleanliness_rating}")
+                return True
+
+        logger.warning(f"⚠️ No se encontró reseña para actualizar: {review.guest_name} - {review.review_date}")
+        return False
+
+    except Exception as e:
+        logger.error(f"❌ Error actualizando reseña: {e}")
+        return False
