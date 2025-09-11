@@ -9,9 +9,9 @@ from models.review import Review
 from scrapers.airbnb_scraper import AirbnbScraper
 from utils.error_handling import handle_scraper_errors
 from utils.gsheet_utils import setup_gspread, append_review_to_sheet, update_existing_review
-from utils.logging_setup import configure_logging  # ← NUEVO
+from utils.logging_setup import configure_logging
 
-# Configura: consola=INFO (hitos), archivo=DEBUG (detalles), HTTP ruidoso=WARNING
+# Consola = INFO (limpia), Archivo = DEBUG (detallado), HTTP ruidoso = WARNING
 configure_logging(
     console_level="INFO",
     file_level="DEBUG",
