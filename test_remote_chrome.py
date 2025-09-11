@@ -7,12 +7,12 @@ from utils.gsheet_utils import setup_gspread, append_review_to_sheet, update_exi
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Usa una URL real de tus pisos
-URL_AIRBNB = "https://www.airbnb.es/performance/quality/overall/listing/45969317"
+URL_AIRBNB = "https://www.airbnb.es/performance/quality/overall/listing/48263202"
 
 if __name__ == "__main__":
     # MODIFICAR: Pasar fechas específicas
     scraper = AirbnbScraper(
-        floor="FP",
+        floor="GB28",
         url=URL_AIRBNB,
         start_date="2025-07-01",  # Fecha inicio
         end_date=date.today().strftime("%Y-%m-%d")  # Fecha fin (hoy)

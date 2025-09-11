@@ -1,3 +1,4 @@
+# scrapers/airbnb_scraper.py
 import logging
 import re
 import hashlib
@@ -59,31 +60,20 @@ class AirbnbScraper(BaseScraper):
             self._log_step(f"Error cargando hashes existentes: {e}", "warning")
 
     def _generate_review_hash(self, guest_name: str, review_date: date, review_text: str) -> str:
-        # SOLO usar nombre, fecha y piso para el hash (el texto varía por idioma)
         unique_string = f"{guest_name}_{review_date.strftime('%Y%m%d')}_{self.floor}"
         self._log_step(f"🔐 Hash basado en: '{guest_name}', '{review_date}', piso")
-
         review_hash = hashlib.md5(unique_string.encode()).hexdigest()
         self._log_step(f"🔐 Hash generado: {review_hash}")
-
         return review_hash
 
     def _is_duplicate_review(self, guest_name: str, review_date: date, review_text: str) -> bool:
         review_hash = self._generate_review_hash(guest_name, review_date, review_text)
         is_duplicate = review_hash in self.existing_hashes
-
         if is_duplicate:
             self._log_step(f"⏭️ Reseña duplicada detectada: {guest_name} - {review_date}")
             self._log_step(f"⏭️ Hash: {review_hash}")
-            # DEBUG: Mostrar hashes existentes similares
-            similar_hashes = [h for h in self.existing_hashes if h.startswith(review_hash[:5])]
-            if similar_hashes:
-                self._log_step(f"⏭️ Hashes existentes similares: {similar_hashes}")
         else:
             self._log_step(f"✅ Reseña nueva: {review_hash}")
-            # DEBUG: Mostrar por qué no se considera duplicado
-            self._log_step(f"✅ Hash no encontrado en {len(self.existing_hashes)} hashes existentes")
-
         return is_duplicate
 
     def _parse_stay_dates(self, date_text: str) -> Tuple[Optional[date], Optional[date]]:
@@ -95,15 +85,16 @@ class AirbnbScraper(BaseScraper):
                 r'(\d{1,2})\s+(\w+)\s+(\d{4})',
             ]
 
+            # Soporta abreviaturas exactas de Airbnb
             months_es = {
-                'ene': 1, 'enero': 1, 'feb': 2, 'febrero': 2, 'mar': 3, 'marzo': 3,
-                'abr': 4, 'abril': 4, 'may': 5, 'mayo': 5, 'jun': 6, 'junio': 6,
-                'jul': 7, 'julio': 7, 'ago': 8, 'agosto': 8, 'sep': 9, 'septiembre': 9,
-                'oct': 10, 'octubre': 10, 'nov': 11, 'noviembre': 11, 'dic': 12, 'diciembre': 12
+                'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4,
+                'may': 5, 'jun': 6, 'jul': 7, 'ago': 8,
+                'sep': 9, 'sept': 9, 'oct': 10,
+                'nov': 11, 'dic': 12
             }
 
             for pattern in patterns:
-                match = re.search(pattern, date_text)
+                match = re.search(pattern, date_text, re.IGNORECASE)
                 if match:
                     groups = match.groups()
 
@@ -120,8 +111,7 @@ class AirbnbScraper(BaseScraper):
                         continue
 
                     start_month_num = months_es.get(start_month.lower().strip(), 1)
-                    end_month_num = months_es.get(
-                        end_month.lower().strip() if 'end_month' in locals() else start_month.lower().strip(), 1)
+                    end_month_num = months_es.get(end_month.lower().strip(), 1)
 
                     check_in = date(int(year), start_month_num, int(start_day))
                     check_out = date(int(year), end_month_num, int(end_day))
