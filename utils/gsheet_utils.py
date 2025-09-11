@@ -44,3 +44,28 @@ def append_review_to_sheet(sheet: gspread.Worksheet, review: Review) -> bool:
     except Exception as e:
         logger.error(f"Error al agregar reseña: {e}")
         return False
+
+
+def get_existing_reviews_hashes(floor: str) -> Set[str]:
+    """Obtener hashes de todas las reseñas existentes para un piso"""
+    try:
+        sheet = setup_gspread()
+        records = sheet.get_all_records()
+
+        existing_hashes = set()
+        for record in records:
+            if record['Piso'] == floor:
+                # Reconstruir hash como se genera en el scraper
+                guest_name = record['Nombre Huésped']
+                review_date = datetime.strptime(record['Fecha Reseña'], '%Y-%m-%d').date()
+                review_text = record['Comentario Completo'][:100]  # Primeros 100 chars
+
+                unique_string = f"{guest_name}_{review_date.strftime('%Y%m%d')}_{floor}_{review_text}"
+                review_hash = hashlib.md5(unique_string.encode()).hexdigest()
+                existing_hashes.add(review_hash)
+
+        return existing_hashes
+
+    except Exception as e:
+        logger.error(f"Error obteniendo hashes existentes: {e}")
+        return set()
