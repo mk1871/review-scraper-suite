@@ -1,19 +1,23 @@
 # utils/error_handling.py
+# -*- coding: utf-8 -*-
 import logging
 from functools import wraps
-from typing import Callable, Any
 
 logger = logging.getLogger(__name__)
 
 
-def handle_scraper_errors(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapper(*args, **kwargs) -> Any:
+def handle_scraper_errors(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
         try:
-            return func(*args, **kwargs)
+            return fn(*args, **kwargs)
+        except SystemExit:
+            raise
+        except KeyboardInterrupt:
+            logger.warning("⚠️ Interrumpido por el usuario (Ctrl+C)")
+            raise
         except Exception as e:
-            logger.error(f"Error in {func.__name__}: {e}")
-            # Puedes agregar lógica específica aquí, como notificaciones
+            logger.exception("❌ Error en %s: %s", fn.__name__, e)
             raise
 
     return wrapper

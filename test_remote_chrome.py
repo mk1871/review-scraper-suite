@@ -1,74 +1,46 @@
-from scrapers.airbnb_scraper import AirbnbScraper
-from datetime import date
+# test_remote_chrome.py
+# -*- coding: utf-8 -*-
 import logging
-from utils.gsheet_utils import setup_gspread, append_review_to_sheet, update_existing_review
+from datetime import date
 
-# Configurar logging para ver más detalles
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+from utils.logging_setup import configure_logging
+from scrapers.airbnb_scraper import AirbnbScraper
 
-# Usa una URL real de tus pisos
-URL_AIRBNB = "https://www.airbnb.es/performance/quality/overall/listing/48263202"
 
-if __name__ == "__main__":
-    # MODIFICAR: Pasar fechas específicas
+def main():
+    # Consola limpia, DEBUG al archivo, HTTP ruidoso en WARNING
+    configure_logging(
+        console_level="INFO",
+        file_level="DEBUG",
+        http_level="WARNING",
+        log_file="logs/scraper.log",
+    )
+    logger = logging.getLogger(__name__)
+
+    logger.info("🚀 Iniciando scraper de Airbnb con URL directa a reviews...")
+
+    # Ejemplo: ajuste rápido para probar un piso concreto
+    piso = "GF2"  # <-- cambia según tu CSV o test
+    url = "https://www.airbnb.es/performance/quality/overall/listing/970291990719745713"  # <-- URL reviews/overall
+
     scraper = AirbnbScraper(
-        floor="GB28",
-        url=URL_AIRBNB,
-        start_date="2025-07-01",  # Fecha inicio
-        end_date=date.today().strftime("%Y-%m-%d")  # Fecha fin (hoy)
+        floor=piso,
+        url=url,
+        start_date="2025-07-01",
+        end_date=date.today().strftime("%Y-%m-%d"),
     )
 
-    print("🚀 Iniciando scraper de Airbnb con URL directa a reviews...")
-    print("📊 Cargando hashes existentes de Google Sheets...")
+    new_reviews, to_update = scraper.scrape()
 
-    # FORZAR la carga de hashes existentes
-    scraper._load_existing_hashes()
+    logger.info("\n📊 Proceso completado.\n   ✅ %d reseñas NUEVAS\n   🔄 %d reseñas para ACTUALIZAR",
+                len(new_reviews), len(to_update))
 
-    print(f"📋 {len(scraper.existing_hashes)} hashes existentes cargados")
+    if to_update:
+        logger.info("\n📍 RESEÑAS PARA ACTUALIZAR:")
+        for r in to_update:
+            logger.info("   - %s (%s): %s - Limpieza: %s",
+                        r.guest_name, r.rating, r.review_date, r.cleanliness_rating)
 
-    # Ejecutar scraping (ahora devuelve dos valores)
-    reviews, reviews_to_update = scraper.scrape()
 
-    print(f"\n📊 Proceso completado.")
-    print(f"   ✅ {len(reviews)} reseñas NUEVAS")
-    print(f"   🔄 {len(reviews_to_update)} reseñas para ACTUALIZAR")
-
-    # Mostrar nuevas reseñas
-    if reviews:
-        print("\n📍 RESEÑAS NUEVAS:")
-        for r in reviews:
-            print(f"   - {r.guest_name} ({r.rating}): {r.review_date} - Limpieza: {r.cleanliness_rating}")
-
-    # Mostrar reseñas para actualizar
-    if reviews_to_update:
-        print("\n📍 RESEÑAS PARA ACTUALIZAR:")
-        for r in reviews_to_update:
-            print(f"   - {r.guest_name} ({r.rating}): {r.review_date} - Limpieza: {r.cleanliness_rating}")
-
-    # Opcional: Exportar a Google Sheets
-    export = input("\n¿Exportar a Google Sheets? (s/n): ")
-    if export.lower() == 's':
-        try:
-            sheet = setup_gspread()
-            print("✅ Conectado a Google Sheets")
-
-            # Agregar nuevas reseñas
-            new_count = 0
-            for review in reviews:
-                if append_review_to_sheet(sheet, review):
-                    new_count += 1
-
-            # Actualizar reseñas existentes
-            update_count = 0
-            for review in reviews_to_update:
-                if update_existing_review(sheet, review):
-                    update_count += 1
-
-            print(f"✅ Exportadas {new_count} nuevas y actualizadas {update_count} reseñas")
-
-        except Exception as e:
-            print(f"❌ Error exportando: {e}")
-
-    print("\n🔍 Hashes existentes cargados:", len(scraper.existing_hashes))
-    if scraper.existing_hashes:
-        print("   Ejemplos:", list(scraper.existing_hashes)[:3])
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -34,25 +34,19 @@ _HTTP_NOISE_RE = re.compile(
 class ConsoleFilter(logging.Filter):
     """
     Filtra del handler de consola:
-      - Cualquier DEBUG (se controla también por nivel, pero por si otro handler cambia).
+      - Cualquier DEBUG (también lo controlamos por nivel).
       - Mensajes de loggers ruidosos.
       - Mensajes HTTP tipo 'GET /v4/spreadsheets...' y 'POST /token ...'.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        # Bloquear DEBUG en consola
         if record.levelno < logging.INFO:
             return False
-
-        # Bloquear loggers ruidosos
         if any(record.name.startswith(lbl) for lbl in _NOISY_LOGGERS):
             return False
-
-        # Bloquear mensajes HTTP/Sheets/OAuth en consola
         msg = record.getMessage()
         if _HTTP_NOISE_RE.search(msg):
             return False
-
         return True
 
 
@@ -68,7 +62,7 @@ def configure_logging(
         file_level: Optional[str] = None,
         http_level: Optional[str] = None,
         log_file: Optional[str] = None,
-        max_bytes: int = 2_000_000,  # ~2MB
+        max_bytes: int = 2_000_000,
         backup_count: int = 5,
 ):
     """
@@ -89,7 +83,7 @@ def configure_logging(
 
     root = logging.getLogger()
 
-    # Quitar cualquier handler previo que otro módulo haya registrado (evita “doble log”)
+    # Quitar cualquier handler previo para evitar duplicados
     for h in list(root.handlers):
         root.removeHandler(h)
 
@@ -111,13 +105,13 @@ def configure_logging(
     fh.setFormatter(logging.Formatter(_FILE_FMT, datefmt=_DATE_FMT))
     root.addHandler(fh)
 
-    # Subir nivel de loggers ruidosos para todos los handlers
+    # Subir nivel de loggers ruidosos (para ambos handlers); el filtro consola los corta igual
     for name in _NOISY_LOGGERS:
         noisy = logging.getLogger(name)
         noisy.setLevel(getattr(logging, http_level, logging.WARNING))
-        noisy.propagate = True  # siguen yendo al archivo si son WARNING+, pero el filtro consola los corta
+        noisy.propagate = True
 
-    # Mensaje de arranque (aparece en consola y archivo)
+    # Mensaje de arranque
     logger = logging.getLogger(__name__)
     logger.info(
         "Logging configurado → console=%s, file=%s, http=%s, file_path=%s",
