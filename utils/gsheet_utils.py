@@ -1,10 +1,11 @@
 # utils/gsheet_utils.py
 
+import logging
+
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from typing import List, Optional
+
 from models.review import Review
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +32,14 @@ def append_review_to_sheet(sheet: gspread.Worksheet, review: Review) -> bool:
     Agrega una nueva reseña a la hoja.
     """
     try:
-        row = review.to_dict()
-        sheet.append_row(list(row.values()))
-        logger.info(f"Se agregó nueva reseña: {review.guest_name} - {review.platform}")
+        row_data = review.to_dict()
+        # Agregar campo de limpieza si existe
+        if hasattr(review, 'cleanliness_rating'):
+            row_data['V Limpieza'] = review.cleanliness_rating
+        else:
+            row_data['V Limpieza'] = ''
+
+        sheet.append_row(list(row_data.values()))
         return True
     except Exception as e:
         logger.error(f"Error al agregar reseña: {e}")
