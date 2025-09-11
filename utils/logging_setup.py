@@ -19,12 +19,20 @@ _NOISY_LOGGERS = [
     "playwright._impl._transport",
 ]
 
-# Formatos
-_CONSOLE_FMT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+# =========================
+# FORMATOS DE LOG
+# =========================
+# (ANTES) Formato VERBOSO en consola, con fecha | nivel | logger | mensaje
+# _CONSOLE_FMT_VERBOSE = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+# (AHORA) Consola ultra-limpia: solo el mensaje
+_CONSOLE_FMT_MINIMAL = "%(message)s"
+
+# Archivo con contexto completo
 _FILE_FMT = "%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d | %(message)s"
 _DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
-# Regex para filtrar líneas HTTP muy verbosas (GET/PUT/POST a sheets.googleapis.com, oauth2, etc.)
+# Regex para filtrar líneas HTTP muy verbosas (GET/PUT/POST a sheets/oauth)
 _HTTP_NOISE_RE = re.compile(
     r'\b(POST|GET|PUT|PATCH|DELETE)\s+/v4/(?:spreadsheets|.*)|oauth2\.googleapis\.com|sheets\.googleapis\.com',
     re.IGNORECASE
@@ -34,7 +42,7 @@ _HTTP_NOISE_RE = re.compile(
 class ConsoleFilter(logging.Filter):
     """
     Filtra del handler de consola:
-      - Cualquier DEBUG (también lo controlamos por nivel).
+      - Cualquier DEBUG (también controlado por nivel).
       - Mensajes de loggers ruidosos.
       - Mensajes HTTP tipo 'GET /v4/spreadsheets...' y 'POST /token ...'.
     """
@@ -67,7 +75,7 @@ def configure_logging(
 ):
     """
     Configura logging con dos handlers:
-      - Consola: INFO+ limpio (con filtro).
+      - Consola: INFO+ limpio con filtro (solo el mensaje).
       - Archivo rotativo: DEBUG (detallado) en logs/scraper.log.
 
     Env vars:
@@ -83,21 +91,30 @@ def configure_logging(
 
     root = logging.getLogger()
 
-    # Quitar cualquier handler previo para evitar duplicados
+    # Evita duplicados si se reconfigura
     for h in list(root.handlers):
         root.removeHandler(h)
 
-    # Root al máximo; los handlers filtran
-    root.setLevel(logging.DEBUG)
+    root.setLevel(logging.DEBUG)  # los handlers filtran
 
-    # --- Consola (INFO+) con filtro de ruido ---
+    # -----------------------
+    # Consola (limpia)
+    # -----------------------
     ch = logging.StreamHandler()
     ch.setLevel(getattr(logging, console_level, logging.INFO))
-    ch.setFormatter(logging.Formatter(_CONSOLE_FMT, datefmt=_DATE_FMT))
+
+    # (ANTES) Formato VERBOSO en consola (comentado a petición):
+    # ch.setFormatter(logging.Formatter(_CONSOLE_FMT_VERBOSE, datefmt=_DATE_FMT))
+
+    # (AHORA) Solo el mensaje:
+    ch.setFormatter(logging.Formatter(_CONSOLE_FMT_MINIMAL, datefmt=_DATE_FMT))
+
     ch.addFilter(ConsoleFilter())
     root.addHandler(ch)
 
-    # --- Archivo rotativo (DEBUG completo) ---
+    # -----------------------
+    # Archivo rotativo (DEBUG)
+    # -----------------------
     log_path = Path(log_file)
     _ensure_log_dir(log_path)
     fh = RotatingFileHandler(log_path, maxBytes=max_bytes, backupCount=backup_count, encoding="utf-8")
@@ -105,13 +122,13 @@ def configure_logging(
     fh.setFormatter(logging.Formatter(_FILE_FMT, datefmt=_DATE_FMT))
     root.addHandler(fh)
 
-    # Subir nivel de loggers ruidosos (para ambos handlers); el filtro consola los corta igual
+    # Sube nivel de librerías ruidosas (el filtro consola ya las corta)
     for name in _NOISY_LOGGERS:
         noisy = logging.getLogger(name)
         noisy.setLevel(getattr(logging, http_level, logging.WARNING))
         noisy.propagate = True
 
-    # Mensaje de arranque
+    # Mensaje de arranque (aparece como solo mensaje en consola, completo en archivo)
     logger = logging.getLogger(__name__)
     logger.info(
         "Logging configurado → console=%s, file=%s, http=%s, file_path=%s",
