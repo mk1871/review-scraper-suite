@@ -1,5 +1,4 @@
 # models/review.py
-
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
@@ -21,6 +20,7 @@ class Review:
     suggestions: Optional[str] = None
     action_plan: Optional[str] = None
     added_date: Optional[date] = None
+    cleanliness_rating: Optional[str] = None  # ← NUEVO CAMPO
 
     def __post_init__(self):
         if not isinstance(self.review_date, date):
@@ -40,7 +40,8 @@ class Review:
             "Sugerencias": self.suggestions or "",
             "Plan Acción": self.action_plan or "",
             "Comentario Completo": self.full_comment,
-            "Fecha Añadida": self.added_date.strftime("%Y-%m-%d") if self.added_date else ""
+            "Fecha Añadida": self.added_date.strftime("%Y-%m-%d") if self.added_date else "",
+            "V Limpieza": self.cleanliness_rating or ""  # ← NUEVO CAMPO
         }
 
     @classmethod
@@ -56,5 +57,6 @@ class Review:
             complaints_summary=data.get("Resumen Quejas", ""),
             suggestions=data.get("Sugerencias", ""),
             action_plan=data.get("Plan Acción", ""),
-            added_date=date.fromisoformat(data["Fecha Añadida"]) if data["Fecha Añadida"] else None
+            added_date=date.fromisoformat(data["Fecha Añadida"]) if data["Fecha Añadida"] else None,
+            cleanliness_rating=data.get("V Limpieza", "")  # ← NUEVO CAMPO
         )

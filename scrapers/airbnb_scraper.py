@@ -58,9 +58,14 @@ class AirbnbScraper(BaseScraper):
             self._log_step(f"Error cargando hashes existentes: {e}", "warning")
 
     def _generate_review_hash(self, guest_name: str, review_date: date, review_text: str) -> str:
-        text_snippet = review_text[:100]
-        unique_string = f"{guest_name}_{review_date.strftime('%Y%m%d')}_{self.floor}_{text_snippet}"
-        return hashlib.md5(unique_string.encode()).hexdigest()
+        # SOLO usar nombre, fecha y piso para el hash (el texto varía por idioma)
+        unique_string = f"{guest_name}_{review_date.strftime('%Y%m%d')}_{self.floor}"
+        self._log_step(f"🔐 Hash basado en: '{guest_name}', '{review_date}', piso")
+
+        review_hash = hashlib.md5(unique_string.encode()).hexdigest()
+        self._log_step(f"🔐 Hash generado: {review_hash}")
+
+        return review_hash
 
     def _is_duplicate_review(self, guest_name: str, review_date: date, review_text: str) -> bool:
         review_hash = self._generate_review_hash(guest_name, review_date, review_text)
@@ -69,8 +74,14 @@ class AirbnbScraper(BaseScraper):
         if is_duplicate:
             self._log_step(f"⏭️ Reseña duplicada detectada: {guest_name} - {review_date}")
             self._log_step(f"⏭️ Hash: {review_hash}")
+            # DEBUG: Mostrar hashes existentes similares
+            similar_hashes = [h for h in self.existing_hashes if h.startswith(review_hash[:5])]
+            if similar_hashes:
+                self._log_step(f"⏭️ Hashes existentes similares: {similar_hashes}")
         else:
             self._log_step(f"✅ Reseña nueva: {review_hash}")
+            # DEBUG: Mostrar por qué no se considera duplicado
+            self._log_step(f"✅ Hash no encontrado en {len(self.existing_hashes)} hashes existentes")
 
         return is_duplicate
 

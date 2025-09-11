@@ -34,7 +34,6 @@ def get_existing_reviews_hashes(floor: str) -> Set[str]:
             if record['Piso'] == floor:
                 guest_name = record['Nombre Huésped']
                 review_date_str = record['Fecha Reseña']
-                review_text = record['Comentario Completo'][:100]
 
                 try:
                     review_date = datetime.strptime(review_date_str, '%Y-%m-%d').date()
@@ -42,18 +41,19 @@ def get_existing_reviews_hashes(floor: str) -> Set[str]:
                 except:
                     date_formatted = review_date_str.replace('-', '')
 
-                unique_string = f"{guest_name}_{date_formatted}_{floor}_{review_text}"
+                # SOLO nombre, fecha y piso (sin texto por problemas de idioma)
+                unique_string = f"{guest_name}_{date_formatted}_{floor}"
                 review_hash = hashlib.md5(unique_string.encode()).hexdigest()
                 existing_hashes.add(review_hash)
 
-                # Log para debugging
-                logger.debug(f"Hash existente: {review_hash} - {guest_name} - {review_date_str}")
+                if len(existing_hashes) < 5:  # Mostrar primeros 5 para debug
+                    print(f"   📝 {guest_name} - {review_date_str} -> {review_hash}")
 
-        logger.info(f"Se cargaron {len(existing_hashes)} hashes existentes para el piso {floor}")
+        print(f"✅ {len(existing_hashes)} hashes generados para piso {floor}")
         return existing_hashes
 
     except Exception as e:
-        logger.error(f"Error obteniendo hashes existentes: {e}")
+        print(f"❌ Error conectando a Google Sheets: {e}")
         return set()
 
 
