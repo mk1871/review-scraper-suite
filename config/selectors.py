@@ -1,22 +1,26 @@
 # config/selectors.py
 
-# Airbnb (por ahora solo este)
 AIRBNB_SELECTORS = {
+    # ... (selectores existentes) ...
 
-    # Selectores para fechas
+    # Selectores para el filtro de fechas
     'date_filter_container': 'div[data-testid="dsSelector"]',
     'date_filter_button': 'div[data-testid="dsSelector"] button',
 
-    'reviews_container': 'div[data-testid="reviews-container"]',
-    'review_items': 'div[data-testid="review-card"]',
-    'review_date': 'div[data-testid="review-date"]',
-    'check_in_date': 'div[data-testid="check-in-date"]',
-    'rating': 'div[data-testid="review-rating"] span',  # Ajustar según estructura real
-    'guest_name': 'div[data-testid="reviewer-name"]',
-    'full_comment': 'div[data-testid="review-text"]',
-    'complaints': 'div[data-testid="review-pros-cons"] div:nth-child(2)',  # Ajustar si es necesario
-    'suggestions': 'div[data-testid="review-pros-cons"] div:nth-child(1)'  # Ajustar si es necesario
+    # Selectores del calendario (campos de texto - como respaldo o si se arregla)
+    'start_date_input': 'input#startDate',
+    'end_date_input': 'input#endDate',
+    'apply_button': 'button[data-testid="dsDropdownApply"]',
+
+    # Nuevos selectores para interacción con el calendario
+    'calendar_container': 'div[data-testid="dsDropdown"]',  # El contenedor principal del calendario
+    'calendar_month_container': 'div._1foj6yps',  # Contiene los meses visibles
+    'calendar_visible_month': 'div._1svux14[data-visible="true"]',  # Un mes visible
+    'calendar_month_title': 'div._18c3hp2',  # Título del mes (ej: "julio de 2025")
+    'calendar_prev_button': 'button[aria-label="Anterior"]',  # Flecha mes anterior
+    'calendar_next_button': 'button[aria-label="Siguiente"]',  # Flecha mes siguiente
+    'calendar_day_button': 'div[data-testid="datepicker-day-{date}"]',
+    # Selector base para un día específico, {date} será reemplazado por YYYY-MM-DD
 }
 
-# Deja BOOKING_SELECTORS comentado o vacío por ahora
-# BOOKING_SELECTORS = {}
+# BOOKING_SELECTORS = {} # Comentado por ahora
